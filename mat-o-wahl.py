@@ -1,6 +1,7 @@
 import json
 import sys
 import random
+from math import exp
 
 file = open("party.json", "r")
 parties = json.load(file)
@@ -47,52 +48,33 @@ def evaluateOne(party, answers, double):
             score += questionscore
     return 0 if total == 0 else score/total
 
-def fittness(x):
+def energy(x):
     val = 0
-    pos = 800
-    neg = 22
-    eq = 1300
+    pos = 1000
+    neg = 1000
+    eq = 1500
     ev1 = evaluateOne(parties[id1], x[0], x[1])
     ev2 = evaluateOne(parties[id2], x[0], x[1])
-    val += pos * (ev1 + ev2) *100
-    val -= eq * abs(ev1-ev2) * 100
+
+    val -= pos * (ev1 + ev2) *100
+    val += eq * abs(ev1-ev2) * 100
+    m = 0
     for y in parties:
         if y["id"] != id1 and y["id"] != id2:
-            val -= neg*100* evaluateOne(y, x[0], x[1])
+            m = max(m, evaluateOne(y, x[0], x[1]))
+    val -= neg*m*100
     return val
 
 def evaluateAll(answers, double):
     for x in parties:
         print(x["name"], evaluateOne(x, answers, double))
 
-poolsize = 100
-mutrate = 0.12
-gennum = 500
+questnum = 38
 
-def mutate(x):
-    for i in range(38):
-        if random.uniform(0,1) <= mutrate:
-            l = [0,1,2]
-            l.remove(x[0][i])
-            x[0][i] = random.choice(l)
-        if random.uniform(0,1) <= mutrate:
-            x[1][i] = not x[1][i]
-    return x
-
-def replicate(x, y):
-    ans = []
-    doub = []
-    for i in range(38):
-        if bool(random.getrandbits(1)):
-            ans.append(x[0][i])
-        else:
-            ans.append(y[0][i])
-        if bool(random.getrandbits(1)):
-            doub.append(x[1][i])
-        else:
-            doub.append([y[1][i]])
-    
-    return mutate([ans, doub])
+steps = 100000
+temperature = 100
+kb = 0.001
+deltatemp = temperature/steps
 
 def print_pretty(x):
     for i in range(38):
@@ -101,20 +83,31 @@ def print_pretty(x):
         if x[1][i]:
             print(i+1)
 
-def genetic():
-    pool = [  [[1 for y in range(38)],[False for z in range(38)]] for _ in range(poolsize)]
+def annealing():
+    global temperature
+    answer = [[1 for y in range(38)],[False for z in range(38)]]
+    oldenergy = energy(answer)
+    for _ in range(steps):
+        #print(temperature)
+        part = random.randint(0,1)
+        index = random.randint(0,questnum-1)
+        oldval = answer[part][index]
+        if part == 0:
+            x = [0,1,2]
+            del(x[oldval])
+            newval = random.choice(x)
+        else:
+            newval = not oldval
+        answer[part][index] = newval
+        newenergy = energy(answer)
+        accept = newenergy < oldenergy or \
+        random.random() <= exp(-1/(kb*temperature))
 
-    for i in range(gennum):
-        print(i)
-        pool.sort(key = fittness, reverse = True)
-        for x in pool[0:10]:
-            for y in pool[0:10]:
-                pool.append(replicate(x,y))
-        pool.sort(key = fittness, reverse = True)
-        pool = pool[0:poolsize]
-
-    pool.sort(key = fittness)
-    evaluateAll(pool[0][0], pool[0][1])
-    print_pretty(pool[0])
-
-genetic()
+        if accept:
+            oldenergy = newenergy
+        else:
+            answer[part][index] = oldval
+        temperature -= deltatemp
+    evaluateAll(answer[0], answer[1])
+    print_pretty(answer)
+annealing()
