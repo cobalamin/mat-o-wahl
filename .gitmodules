@@ -1,0 +1,3 @@
+[submodule "wahl-o-mat-data"]
+	path = wahl-o-mat-data
+	url = git@github.com:gockelhahn/qual-o-mat-data.git
